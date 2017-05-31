@@ -24,7 +24,7 @@ public class NotificationUtil {
         Builder builder = new Builder(context)
         .setContentTitle(title)
         .setContentText(subject)
-        //.setSmallIcon(R.drawable.ic_small_icon)
+        .setSmallIcon(R.mipmap.ic_launcher)
                 .setLargeIcon(bitmap)
         .setContentIntent(contentIntent);
 
