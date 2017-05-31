@@ -18,7 +18,7 @@ public class NotificationUtil {
     public static Notification createNotification(Context context, PendingIntent contentIntent, 
             String title, String subject, boolean audio, String audioname, boolean cancelable) {
         Uri alarmSound = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE
-                + "://" + context.getPackageName() + "/audio/" + audioname);
+                + "://" + context.getPackageName() + "/raw/" + audioname);
 
         Bitmap bitmap = BitmapFactory.decodeResource( context.getResources(), R.mipmap.ic_launcher);
         Builder builder = new Builder(context)
