@@ -1,0 +1,341 @@
+package id.co.rumahcoding.jadual;
+
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.util.Log;
+import android.widget.ImageButton;
+import android.widget.TextView;
+
+import org.joda.time.DateTime;
+import org.joda.time.chrono.IslamicChronology;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.OnClick;
+import id.co.rumahcoding.jadual.utils.DateUtil;
+import id.co.rumahcoding.jadual.utils.NotificationUtil;
+import id.co.rumahcoding.jadual.utils.PopupUtil;
+import id.co.rumahcoding.jadual.utils.PrefsUtil;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
+    @BindView(R.id.current_time)
+    TextView currentTimeTextView;
+
+    @BindView(R.id.date_masehi)
+    TextView masehiDateTextView;
+
+    @BindView(R.id.date_hijri)
+    TextView hijriDateTextView;
+
+    @BindView(R.id.time_subuh)
+    TextView subuhTimeTextView;
+
+    @BindView(R.id.time_zuhur)
+    TextView zuhurTimeTextView;
+
+    @BindView(R.id.time_ashar)
+    TextView asharTimeTextView;
+
+    @BindView(R.id.time_maghrib)
+    TextView maghribTimeTextView;
+
+    @BindView(R.id.time_isya)
+    TextView isyaTimeTextView;
+
+    @BindView(R.id.alarm_subuh)
+    ImageButton alarmSubuhImageButton;
+
+    @BindView(R.id.alarm_zuhur)
+    ImageButton alarmZuhurImageButton;
+
+    @BindView(R.id.alarm_ashar)
+    ImageButton alarmAsharImageButton;
+
+    @BindView(R.id.alarm_maghrib)
+    ImageButton alarmMaghribmageButton;
+
+    @BindView(R.id.alarm_isya)
+    ImageButton alarmIsyaImageButton;
+
+    private OkHttpClient okHttpClient = new OkHttpClient();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        ButterKnife.bind(this);
+
+        Date date = new Date();
+        String masehi = DateUtil.pretty(date);
+        masehiDateTextView.setText(masehi);
+
+        DateTime dateTime = new DateTime();
+        DateTime islamicDateTime = dateTime.withChronology(IslamicChronology.getInstance());
+
+        int hDate = islamicDateTime.getDayOfMonth();
+        int hMonth = islamicDateTime.getDayOfMonth();
+        int hYear = islamicDateTime.getYear();
+
+        String hijri = DateUtil.hijri(hDate, hMonth, hYear);
+        hijriDateTextView.setText(hijri);
+
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                updateTime();
+            }
+        };
+
+        Timer timer = new Timer();
+        timer.schedule(task, 0, 1000);
+
+        String today = DateUtil.formatMySQL(date);
+        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+        String lastUpdated = prefsUtil.getStringState("last_updated", "");
+
+        if(!today.equals(lastUpdated)) {
+            getJadwal();
+        }
+
+        updateLayout();
+    }
+
+    private void updateLayout() {
+        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+        String subuh = prefsUtil.getStringState("subuh", "");
+        String zuhur = prefsUtil.getStringState("zuhur", "");
+        String ashar = prefsUtil.getStringState("ashar", "");
+        String maghrib = prefsUtil.getStringState("maghrib", "");
+        String isya = prefsUtil.getStringState("isya", "");
+
+        subuhTimeTextView.setText(subuh);
+        zuhurTimeTextView.setText(zuhur);
+        asharTimeTextView.setText(ashar);
+        maghribTimeTextView.setText(maghrib);
+        isyaTimeTextView.setText(isya);
+
+        updateAlarmButton(alarmSubuhImageButton, prefsUtil.getBooleanState("alarm_subuh", false));
+        updateAlarmButton(alarmZuhurImageButton, prefsUtil.getBooleanState("alarm_zuhur", false));
+        updateAlarmButton(alarmAsharImageButton, prefsUtil.getBooleanState("alarm_ashar", false));
+        updateAlarmButton(alarmMaghribmageButton, prefsUtil.getBooleanState("alarm_maghrib", false));
+        updateAlarmButton(alarmIsyaImageButton, prefsUtil.getBooleanState("alarm_isya", false));
+    }
+
+    private void updateTime() {
+        Date date = new Date();
+        final String time = DateUtil.onlyTime(date);
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                currentTimeTextView.setText(time);
+            }
+        });
+    }
+
+    private void getJadwal()  {
+        PopupUtil.showLoading(this, "", "Loading ...");
+
+        Request request = new Request.Builder()
+                .url("http://api.aladhan.com/timings?latitude=-6.3648506&longitude=106.8473377&timezonestring=Asia/Jakarta")
+                .build();
+
+        okHttpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                PopupUtil.dismissDialog();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                PopupUtil.dismissDialog();
+                String body = response.body().string();
+
+                try {
+                    JSONObject json = new JSONObject(body);
+                    int code = json.getInt("code");
+
+                    if(code == 200) {
+                        JSONObject data = json.getJSONObject("data");
+                        JSONObject timings = data.getJSONObject("timings");
+
+                        final String subuh = timings.getString("Fajr");
+                        final String zuhur = timings.getString("Dhuhr");
+                        final String ashar = timings.getString("Asr");
+                        final String maghrib = timings.getString("Maghrib");
+                        final String isya = timings.getString("Isha");
+
+                        Date date = new Date();
+                        String sdate = DateUtil.formatMySQL(date);
+
+                        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+                        prefsUtil.setStringState("last_updated", sdate);
+                        prefsUtil.setStringState("subuh", subuh);
+                        prefsUtil.setStringState("zuhur", zuhur);
+                        prefsUtil.setStringState("ashar", ashar);
+                        prefsUtil.setStringState("maghrib", maghrib);
+                        prefsUtil.setStringState("isya", isya);
+
+                        cancelAllAlarm();
+                        updateAllSchedule();
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                subuhTimeTextView.setText(subuh);
+                                zuhurTimeTextView.setText(zuhur);
+                                asharTimeTextView.setText(ashar);
+                                maghribTimeTextView.setText(maghrib);
+                                isyaTimeTextView.setText(isya);
+                            }
+                        });
+                    }
+                }
+                catch (JSONException e) {
+
+                }
+            }
+        });
+    }
+
+    private void updateAllSchedule() {
+        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+
+        if(prefsUtil.getBooleanState("alarm_subuh", false)) {
+            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("subuh", "")));
+        }
+
+        if(prefsUtil.getBooleanState("alarm_zuhur", false)) {
+            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("zuhur", "")));
+        }
+
+        if(prefsUtil.getBooleanState("alarm_ashar", false)) {
+            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("ashar", "")));
+        }
+
+        if(prefsUtil.getBooleanState("alarm_maghrib", false)) {
+            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("maghrib", "")));
+        }
+
+        if(prefsUtil.getBooleanState("alarm_isya", false)) {
+            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("isya", "")));
+        }
+    }
+
+    @OnClick({R.id.alarm_subuh, R.id.alarm_zuhur, R.id.alarm_ashar,
+            R.id.alarm_maghrib, R.id.alarm_isya })
+    public void onAlarmClicked(ImageButton button) {
+        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+        Drawable drawable = button.getDrawable();
+        String alarm = "";
+        int alarmId = button.getId();
+
+        switch (alarmId) {
+            case R.id.alarm_subuh:
+                alarm = "alarm_subuh";
+                break;
+            case R.id.alarm_zuhur:
+                alarm = "alarm_zuhur";
+                break;
+            case R.id.alarm_ashar:
+                alarm = "alarm_ashar";
+                break;
+            case R.id.alarm_maghrib:
+                alarm = "alarm_maghrib";
+                break;
+            case R.id.alarm_isya:
+                alarm = "alarm_isya";
+                break;
+        }
+
+        if (drawable.getConstantState().equals(getResources().getDrawable(R.drawable.ic_volume_up)
+                .getConstantState())){
+            button.setImageResource(R.drawable.ic_volume_off);
+            prefsUtil.setBooleanState(alarm, false);
+            Log.d(TAG, "Changing " + alarm + " to false");
+        }
+        else {
+            button.setImageResource(R.drawable.ic_volume_up);
+            prefsUtil.setBooleanState(alarm, true);
+            Log.d(TAG, "Changing " + alarm + " to true");
+        }
+
+        cancelAllAlarm();
+        updateAllSchedule();
+    }
+
+    private void updateAlarmButton(ImageButton button, boolean isAlarmOn) {
+        Log.d(TAG, "Update alarm button to " + isAlarmOn);
+
+        if(isAlarmOn) {
+            button.setImageResource(R.drawable.ic_volume_up);
+        }
+        else {
+            button.setImageResource(R.drawable.ic_volume_off);
+        }
+    }
+
+    @OnClick(R.id.current_time)
+    public void onTimeClicked() {
+        Intent intent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent,
+                PendingIntent.FLAG_CANCEL_CURRENT);
+        Notification notification = NotificationUtil.createNotification(this, pendingIntent, "Jadual",
+                "Waktu azan", true, "adzan", true);
+
+        NotificationManager notificationManager = (NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.notify(1, notification);
+    }
+
+    private void scheduleAdzan(long alarmTime) {
+        Intent intent = new Intent(this, AlarmReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+        if (System.currentTimeMillis() > alarmTime) {
+            alarmTime = alarmTime + 24 * 60 * 60 * 1000;
+        }
+
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP,
+                alarmTime, AlarmManager.INTERVAL_DAY, pendingIntent);
+    }
+
+    private void cancelAllAlarm() {
+        Intent intent = new Intent(this, AlarmReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+        try {
+            alarmManager.cancel(pendingIntent);
+        }
+        catch (Exception e) {
+
+        }
+    }
+}
