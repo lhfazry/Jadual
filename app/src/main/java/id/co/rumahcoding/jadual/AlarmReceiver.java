@@ -8,7 +8,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import id.co.rumahcoding.jadual.utils.DateUtil;
 import id.co.rumahcoding.jadual.utils.NotificationUtil;
+import id.co.rumahcoding.jadual.utils.PrefsUtil;
+import id.co.rumahcoding.jadual.utils.ScheduleUtil;
 
 /**
  * Created by blastocode on 5/30/17.
@@ -20,15 +23,10 @@ public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "alarm received");
-        Intent i = new Intent(context, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, 1, i,
-                PendingIntent.FLAG_CANCEL_CURRENT);
-        Notification notification = NotificationUtil.createNotification(context,
-                pendingIntent, "Jadual",
-                "Waktu azan", true, "adzan", true);
 
-        NotificationManager notificationManager = (NotificationManager)
-                context.getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(1, notification);
+        String adzan = intent.getStringExtra("adzan");
+        PrefsUtil prefsUtil = PrefsUtil.getInstance();
+        ScheduleUtil.scheduleAdzan(context, DateUtil.hourToMillis(prefsUtil.getStringState(adzan, "")), adzan);
+        NotificationUtil.showAdzanNotification(context, adzan);
     }
 }

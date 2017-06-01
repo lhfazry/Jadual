@@ -5,12 +5,14 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
 
+import id.co.rumahcoding.jadual.MainActivity;
 import id.co.rumahcoding.jadual.R;
 
 
@@ -86,5 +88,17 @@ public class NotificationUtil {
             nm.cancel(notifId);
         }
         catch(Exception e){}
+    }
+
+    public static void showAdzanNotification(Context context, String adzan) {
+        Intent intent = new Intent(context, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, 1, intent,
+                PendingIntent.FLAG_CANCEL_CURRENT);
+        Notification notification = NotificationUtil.createNotification(context, pendingIntent, "Jadual",
+                "Waktu azan", true, adzan, true);
+
+        NotificationManager notificationManager = (NotificationManager)
+                context.getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.notify(1, notification);
     }
 }

@@ -10,6 +10,7 @@ import java.util.Locale;
  * Created by fazri on 4/1/2015.
  */
 public class DateUtil {
+    private static final String TAG = "DateUtil";
     private static final String[] hijriNames = new String[]{
             "Muharram", "Safar", "Rabiul Awal", "Rabiul Akhir", "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya'ban", "Ramadhan", "Syawal", "Dzulqaidah", "Dzulhijjah"
     };
@@ -47,7 +48,7 @@ public class DateUtil {
     public static long hourToMillis(final String hour) {
         String[] hours = hour.split(":");
         Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR, Integer.parseInt(hours[0]));
+        calendar.set(Calendar.HOUR_OF_DAY, Integer.parseInt(hours[0]));
         calendar.set(Calendar.MINUTE, Integer.parseInt(hours[1]));
         return calendar.getTimeInMillis();
     }
@@ -55,6 +56,5 @@ public class DateUtil {
     public static String hijri(int date, int month, int year) {
         return "" + date + " " + hijriNames[month - 1] + " " + year + "H";
     }
-
 
 }

@@ -1,5 +1,6 @@
 package id.co.rumahcoding.jadual;
 
+import android.annotation.TargetApi;
 import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -7,6 +8,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -33,6 +35,7 @@ import id.co.rumahcoding.jadual.utils.DateUtil;
 import id.co.rumahcoding.jadual.utils.NotificationUtil;
 import id.co.rumahcoding.jadual.utils.PopupUtil;
 import id.co.rumahcoding.jadual.utils.PrefsUtil;
+import id.co.rumahcoding.jadual.utils.ScheduleUtil;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
@@ -96,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
         DateTime islamicDateTime = dateTime.withChronology(IslamicChronology.getInstance());
 
         int hDate = islamicDateTime.getDayOfMonth();
-        int hMonth = islamicDateTime.getDayOfMonth();
+        int hMonth = islamicDateTime.getMonthOfYear();
         int hYear = islamicDateTime.getYear();
 
         String hijri = DateUtil.hijri(hDate, hMonth, hYear);
@@ -121,6 +124,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         updateLayout();
+
+        long time = DateUtil.hourToMillis("08:40");
+        ScheduleUtil.scheduleAdzan(this, time, "subuh");
     }
 
     private void updateLayout() {
@@ -199,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
                         prefsUtil.setStringState("maghrib", maghrib);
                         prefsUtil.setStringState("isya", isya);
 
-                        cancelAllAlarm();
+                        ScheduleUtil.cancelAllAlarm(MainActivity.this);
                         updateAllSchedule();
 
                         runOnUiThread(new Runnable() {
@@ -225,23 +231,23 @@ public class MainActivity extends AppCompatActivity {
         PrefsUtil prefsUtil = PrefsUtil.getInstance();
 
         if(prefsUtil.getBooleanState("alarm_subuh", false)) {
-            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("subuh", "")));
+            ScheduleUtil.scheduleAdzan(this, DateUtil.hourToMillis(prefsUtil.getStringState("subuh", "")), "subuh");
         }
 
         if(prefsUtil.getBooleanState("alarm_zuhur", false)) {
-            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("zuhur", "")));
+            ScheduleUtil.scheduleAdzan(this, DateUtil.hourToMillis(prefsUtil.getStringState("zuhur", "")), "zuhur");
         }
 
         if(prefsUtil.getBooleanState("alarm_ashar", false)) {
-            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("ashar", "")));
+            ScheduleUtil.scheduleAdzan(this, DateUtil.hourToMillis(prefsUtil.getStringState("ashar", "")), "ashar");
         }
 
         if(prefsUtil.getBooleanState("alarm_maghrib", false)) {
-            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("maghrib", "")));
+            ScheduleUtil.scheduleAdzan(this, DateUtil.hourToMillis(prefsUtil.getStringState("maghrib", "")), "maghrib");
         }
 
         if(prefsUtil.getBooleanState("alarm_isya", false)) {
-            scheduleAdzan(DateUtil.hourToMillis(prefsUtil.getStringState("isya", "")));
+            ScheduleUtil.scheduleAdzan(this, DateUtil.hourToMillis(prefsUtil.getStringState("isya", "")), "isya");
         }
     }
 
@@ -250,6 +256,9 @@ public class MainActivity extends AppCompatActivity {
     public void onAlarmClicked(ImageButton button) {
         PrefsUtil prefsUtil = PrefsUtil.getInstance();
         Drawable drawable = button.getDrawable();
+        Drawable volumeUp = getResources().getDrawable(R.drawable.ic_volume_up);
+        Drawable volumeOff = getResources().getDrawable(R.drawable.ic_volume_off);
+
         String alarm = "";
         int alarmId = button.getId();
 
@@ -271,19 +280,16 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
 
-        if (drawable.getConstantState().equals(getResources().getDrawable(R.drawable.ic_volume_up)
-                .getConstantState())){
-            button.setImageResource(R.drawable.ic_volume_off);
+        if(drawable.getConstantState().equals(volumeUp.getConstantState())) {
+            button.setImageDrawable(volumeOff);
             prefsUtil.setBooleanState(alarm, false);
-            Log.d(TAG, "Changing " + alarm + " to false");
         }
         else {
-            button.setImageResource(R.drawable.ic_volume_up);
+            button.setImageDrawable(volumeUp);
             prefsUtil.setBooleanState(alarm, true);
-            Log.d(TAG, "Changing " + alarm + " to true");
         }
 
-        cancelAllAlarm();
+        ScheduleUtil.cancelAllAlarm(this);
         updateAllSchedule();
     }
 
@@ -300,42 +306,8 @@ public class MainActivity extends AppCompatActivity {
 
     @OnClick(R.id.current_time)
     public void onTimeClicked() {
-        Intent intent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent,
-                PendingIntent.FLAG_CANCEL_CURRENT);
-        Notification notification = NotificationUtil.createNotification(this, pendingIntent, "Jadual",
-                "Waktu azan", true, "adzan", true);
-
-        NotificationManager notificationManager = (NotificationManager)
-                getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(1, notification);
+        NotificationUtil.showAdzanNotification(this, "adzan");
     }
 
-    private void scheduleAdzan(long alarmTime) {
-        Intent intent = new Intent(this, AlarmReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 1, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
-        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
 
-        if (System.currentTimeMillis() > alarmTime) {
-            alarmTime = alarmTime + 24 * 60 * 60 * 1000;
-        }
-
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP,
-                alarmTime, AlarmManager.INTERVAL_DAY, pendingIntent);
-    }
-
-    private void cancelAllAlarm() {
-        Intent intent = new Intent(this, AlarmReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 1, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
-        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-
-        try {
-            alarmManager.cancel(pendingIntent);
-        }
-        catch (Exception e) {
-
-        }
-    }
 }
